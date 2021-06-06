@@ -20,25 +20,29 @@ if($jwt){
   try {
     // decode jwt
     $decoded = JWT::decode($jwt, $key, array('HS256'));
-
-    // set response code
-    http_response_code(200);
-
-    // show user details
-    /*echo json_encode(array(
-        "message" => "Access granted.",
-        "data" => $decoded->data["id"]);*/
     $uid=$decoded->data->id;
-    $myConn=new myConn("bots");
-    $botConds=[];
+    $myConn=new myConn("users");
     if($myConn->connectToDB($servername,$dbname,$username,$password)){
+      ////check token
+      $userConds=["userID="=>$uid];
+      if($myConn->prepareSelect(["AppToken"],$userConds)){        
+        if($myConn->run(null,$userConds)){
+          $userResult=$myConn->getSelectResult();
+          if(htmlspecialchars($jwt)!==$userResult[0]["AppToken"]){
+            http_response_code(401);
+            die("Bad Token");
+          }
+        }
+      }
+      ////end check token
+      $myConn->table("bots");
+      $botConds=[];
       $botConds=["userID="=>$uid,
                  "and isDeleted="=>0];
-      if ($myConn->prepareSelect(['*'],$botConds)){
+      if ($myConn->prepareSelect(['botID','botName','botIcon'],$botConds)){
         if($myConn->run(null,$botConds)){
           $result=$myConn->getSelectResult();
-          echo json_encode(array("message"  => "Success",
-                                 "botsList" => $result));
+          echo json_encode($result);
         }else{
           echo "prepare Select error";
       }
@@ -54,10 +58,10 @@ if($jwt){
       http_response_code(401);
    
       // tell the user access denied  & show error message
-      echo json_encode(array(
+      /*echo json_encode(array(
           "message" => "Access denied.",
           "error" => $e->getMessage()
-      ));
+      ));*/
       //header('Location: ../../'); 
   }
 }else{ // show error message if jwt is empty 
@@ -65,7 +69,7 @@ if($jwt){
   http_response_code(401);
 
   // tell the user access denied
-  echo json_encode(array("message" => "Access denied."));
+  /*echo json_encode(array("message" => "Access denied."));*/
   //header('Location: ../../'); 
 }
 

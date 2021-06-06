@@ -25,14 +25,14 @@ include_once '../app/libs/php/php-jwt-master/src/SignatureInvalidException.php';
 include_once '../app/libs/php/php-jwt-master/src/JWT.php';
 use \Firebase\JWT\JWT;
 
-$getUserID=new myConn("users");
+$myConn=new myConn("users");
 $userConds=[];
-if($getUserID->connectToDB($servername,$dbname,$username,$password)){
+if($myConn->connectToDB($servername,$dbname,$username,$password)){
   $userConds=["userEmail="=>$email];
-    if($getUserID->prepareSelect(['*'],$userConds)){
-      if($getUserID->run(null,$userConds)){
-        $result=$getUserID->getSelectResult();
-        if($getUserID->getSelectRowNumbers()){
+    if($myConn->prepareSelect(['*'],$userConds)){
+      if($myConn->run(null,$userConds)){
+        $result=$myConn->getSelectResult();
+        if($myConn->getSelectRowNumbers()){
           $userPass=$result[0]['userPassword'];
           if (password_verify($upassword,$userPass)){      
             $token = array(
@@ -44,12 +44,18 @@ if($getUserID->connectToDB($servername,$dbname,$username,$password)){
                   "email" => $result[0]['userEmail']
               )
             );
-            // set response code
-            http_response_code(200);
-            // generate jwt
             $jwt = JWT::encode($token, $key);
-            echo json_encode(array("message" => "Login Success.",
-                                   "token" => $jwt));
+            $updateToken["AppToken"]=htmlspecialchars($jwt);
+            $updateTokenConds=["userID="=>$result[0]['userID']];
+            if($myConn->prepareUpdate($updateToken,$updateTokenConds)){
+              if($myConn->run($updateToken,$updateTokenConds)){
+                // set response code
+                http_response_code(200);
+                // generate jwt                
+                echo  $jwt;
+              }
+            }
+            
         
           }else{ 
               // set response code

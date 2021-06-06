@@ -13,7 +13,7 @@ include_once '../../libs/php/php-jwt-master/src/JWT.php';
 use \Firebase\JWT\JWT;
 $data = json_decode(file_get_contents("php://input"));
 $jwt=$data->token;
- 
+//echo $jwt;
 // if jwt is not empty
 if($jwt){
  
@@ -21,30 +21,31 @@ if($jwt){
   try {
     // decode jwt
     $decoded = JWT::decode($jwt, $key, array('HS256'));
-
-    // set response code
-    http_response_code(200);
-
+    //echo json_encode($decoded); 
+    
     // show user details
     /*echo json_encode(array(
         "message" => "Access granted.",
         "data" => $decoded->data["id"]);*/
     $uid=$decoded->data->id;
-    $email=$decoded->data->email;
-    $token = array(
-              "iat" => $issued_at,
-              "exp" => $expiration_time,
-              "iss" => $issuer,
-              "data" => array(
-                  "id" =>$uid,
-                  "email" => $email
-              )
-    );
-    // generate new jwt
-    $jwt = JWT::encode($token, $key);    
-    $myConn=new myConn("bots");
-    $botConds=[];
+    //echo $uid;
+    $myConn=new myConn("users");
     if($myConn->connectToDB($servername,$dbname,$username,$password)){
+      ////check token
+      $userConds=["userID="=>$uid];
+      if($myConn->prepareSelect(["AppToken"],$userConds)){        
+        if($myConn->run(null,$userConds)){
+          $userResult=$myConn->getSelectResult();
+          if(htmlspecialchars($jwt)!==$userResult[0]["AppToken"]){
+            http_response_code(401);
+            die("Bad Token");
+          }
+        }
+      }
+      ////end check token
+        
+      $myConn->table("bots");
+      $botConds=[];      
       $botConds=["userID="=>$uid,
                  "and isActive="=>1];
       if ($myConn->prepareSelect(['*'],$botConds)){
@@ -76,12 +77,29 @@ if($jwt){
                     if($myConn->run(null,$newConversationConds)){
                       $newConverstaions=$myConn->getSelectResult();
                       $newConverstaionsCount=$myConn->getSelectRowNumbers();
-                      
-                      echo json_encode(array("newToken"         => $jwt,
-                                             "activeBots"       => $activeBotsCount,
-                                             "allConversations" => $allConversationsCount,
-                                             "newConverstaions" => $newConverstaionsCount,
-                                             "contacts"         =>$contactsCount));
+                      /////////////////////
+                      $myConn->table("user_profile");
+                      $usersConds=[];
+                      $usersConds=["userID="=>$uid];
+                      if ($myConn->prepareSelect(['*'],$usersConds)){
+                        if($myConn->run(null,$usersConds)){
+                          $users=$myConn->getSelectResult();
+                          //echo json_encode($users);
+                          // set response code
+                          http_response_code(200);
+                          echo json_encode(array( "firstName"         =>$users[0]["firstName"],
+                                                  "lastName"          =>$users[0]["lastName"],
+                                                  "activeBots"        => $activeBotsCount,
+                                                  "allConversations"  => $allConversationsCount,
+                                                  "newConverstaions"  => $newConverstaionsCount,
+                                                  "contacts"          =>$contactsCount));
+                        }else{
+                          echo "userProfile run Select error";
+                      }
+                      }else{
+                          echo "userProfile prepare Select error";
+                      }
+                      /////////////////////                              
                     }else{
                       echo "newConverstaionsCount prepare Select error";
                   }
@@ -108,9 +126,9 @@ if($jwt){
       }
       }else{
           echo "activeBots run Select error";
-      }
-    }         
-  } 
+      }          
+    }
+  }
   // if decode fails, it means jwt is invalid
   catch (Exception $e){
    
@@ -118,10 +136,10 @@ if($jwt){
       http_response_code(401);
    
       // tell the user access denied  & show error message
-      echo json_encode(array(
+      /*echo json_encode(array(
           "message" => "Access denied.",
           "error" => $e->getMessage()
-      ));
+      ));*/
       //header('Location: ../../'); 
   }
 }else{ // show error message if jwt is empty 
@@ -129,7 +147,7 @@ if($jwt){
   http_response_code(401);
 
   // tell the user access denied
-  echo json_encode(array("message" => "Access denied."));
+  /*echo json_encode(array("message" => "Access denied."));*/
   //header('Location: ../../'); 
 }
 
